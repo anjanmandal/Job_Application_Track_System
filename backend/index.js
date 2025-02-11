@@ -20,17 +20,27 @@ connectDB();
 console.log('MONGO_URI:', process.env.MONGO_URL);
 
 // Middlewares
+// server.js (CORS Configuration)
 app.use(cors({
-  origin: process.env.CLIENT_URL, // your client URL
-  credentials: true
+  origin: (origin, callback) => {
+    console.log("Request from origin:", origin);  // Debugging log
+    if (origin === process.env.CLIENT_URL || origin === process.env.EXTENSION_URL) {
+      callback(null, true);  // Allow requests from both the client and extension
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  // allowedHeaders:true  // Ensure cookies are included in requests
 }));
+
+
+
+
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Serve uploaded files (resumes) statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Session
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -38,14 +48,17 @@ app.use(
     saveUninitialized: false,
     store: MongoStore.create({
       mongoUrl: process.env.MONGO_URL,
-      collectionName: 'sessions'
+      collectionName: 'sessions',
     }),
     cookie: {
-      httpOnly: true,
-      maxAge: 1000 * 60 * 20,
-    }
+      httpOnly: true,  // Prevent access to cookie from JavaScript
+      secure: process.env.NODE_ENV === 'production',  // Use `true` in production, `false` in development
+      // sameSite: 'None',  // Required for cross-origin requests (like from Chrome extension)
+      maxAge: 1000 * 60 * 20,  // 20 minutes
+    },
   })
 );
+
 
 // Passport
 require('./config/passport')(passport);

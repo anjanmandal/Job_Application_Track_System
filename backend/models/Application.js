@@ -21,7 +21,10 @@ const applicationSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  resumePath: String, // path to the resume file
+  applicationLink:{
+    type:String,
+    required:true
+  },
   recruiters: [
     {
       type: mongoose.Schema.Types.ObjectId,

@@ -5,61 +5,110 @@ const Alumni = require('../models/Alumni');
 
 exports.createApplication = async (req, res) => {
   try {
-    const {
-      companyName,
-      position,
-      location,
-      status,
-      notes,
-      recruiters,
+    const { 
+      companyName, 
+      position, 
+      location, 
+      status, 
+      dateApplied, 
+      notes, 
+      recruiters, 
       alumni,
-      dateApplied
+      applicationLink
     } = req.body;
 
-    // If recruiters are provided as JSON in string form
-    const recruitersData = recruiters ? JSON.parse(recruiters) : [];
-    const alumniData = alumni ? JSON.parse(alumni) : [];
+    // 1) Validate required basic info
+    if (!companyName || !position || !location || !status || !dateApplied ||!applicationLink) {
+      return res.status(400).json({
+        message: 'companyName, position, location, status, and dateApplied are required.'
+      });
+    }
 
-    let recruiterIds = [];
-    for (const rec of recruitersData) {
-      if (rec._id) {
-        recruiterIds.push(rec._id);
+    // 2) Parse recruiters/alumni if they are JSON strings
+    let parsedRecruiters = [];
+    if (recruiters) {
+      if (typeof recruiters === 'string') {
+        try {
+          parsedRecruiters = JSON.parse(recruiters);
+        } catch (e) {
+          return res.status(400).json({ message: 'Invalid recruiters data.' });
+        }
       } else {
-        const newRecruiter = new Recruiter(rec);
-        await newRecruiter.save();
-        recruiterIds.push(newRecruiter._id);
+        parsedRecruiters = recruiters;
       }
+    }
+
+    let parsedAlumni = [];
+    if (alumni) {
+      if (typeof alumni === 'string') {
+        try {
+          parsedAlumni = JSON.parse(alumni);
+        } catch (e) {
+          return res.status(400).json({ message: 'Invalid alumni data.' });
+        }
+      } else {
+        parsedAlumni = alumni;
+      }
+    }
+
+    // 3) Validate recruiter/alumni entries if they exist
+    for (let i = 0; i < parsedRecruiters.length; i++) {
+      if (!parsedRecruiters[i].name?.trim()) {
+        return res.status(400).json({
+          message: 'Recruiter name is required if recruiter is added.'
+        });
+      }
+    }
+
+    for (let i = 0; i < parsedAlumni.length; i++) {
+      if (!parsedAlumni[i].name?.trim()) {
+        return res.status(400).json({
+          message: 'Alumni name is required if alumni is added.'
+        });
+      }
+    }
+
+    // 4) Create recruiters and alumni if they do not exist
+    let recruiterIds = [];
+    for (const rec of parsedRecruiters) {
+      let recruiter = await Recruiter.findOne({ email: rec.email });
+      if (!recruiter) {
+        // Create new recruiter if not found
+        recruiter = new Recruiter(rec);
+        await recruiter.save();
+      }
+      recruiterIds.push(recruiter._id);
     }
 
     let alumniIds = [];
-    for (const al of alumniData) {
-      if (al._id) {
-        alumniIds.push(al._id);
-      } else {
-        const newAlumni = new Alumni(al);
-        await newAlumni.save();
-        alumniIds.push(newAlumni._id);
+    for (const al of parsedAlumni) {
+      let alumnus = await Alumni.findOne({ email: al.email });
+      if (!alumnus) {
+        // Create new alumnus if not found
+        alumnus = new Alumni(al);
+        await alumnus.save();
       }
+      alumniIds.push(alumnus._id);
     }
-    const parsedDate = dateApplied ? new Date(dateApplied) : Date.now();
 
-    const newApp = new Application({
+    // 5) Create application in DB
+    const newApplication = {
       user: req.user._id,
       companyName,
       position,
       location,
       status,
+      dateApplied,
       notes,
+      applicationLink,
       recruiters: recruiterIds,
-      alumni: alumniIds,
-      resumePath: req.file ? req.file.path : null,
-      dateApplied: parsedDate
-    });
+      alumni: alumniIds
+    };
 
-    await newApp.save();
-    return res.status(201).json({ message: 'Application created', application: newApp });
-  } catch (error) {
-    console.error(error);
+    const savedApp = await Application.create(newApplication);
+    return res.status(201).json(savedApp);
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
@@ -90,10 +139,12 @@ exports.getApplicationById = async (req, res) => {
     if (!app) {
       return res.status(404).json({ message: 'Application not found' });
     }
+
     // If user is not admin, ensure ownership
     if (req.user.role === 'user' && app.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
+
     return res.status(200).json(app);
   } catch (err) {
     console.error(err);
@@ -104,7 +155,10 @@ exports.getApplicationById = async (req, res) => {
 exports.updateApplication = async (req, res) => {
   try {
     const app = await Application.findById(req.params.id);
-    if (!app) return res.status(404).json({ message: 'Application not found' });
+    if (!app) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+
     if (req.user.role === 'user' && app.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -114,67 +168,99 @@ exports.updateApplication = async (req, res) => {
       position,
       location,
       status,
+      dateApplied,
       notes,
+      applicationLink,
       recruiters,
       alumni
     } = req.body;
 
-    if (companyName) app.companyName = companyName;
-    if (position) app.position = position;
-    if (location) app.location = location;
-    if (status) app.status = status;
-    if (notes) app.notes = notes;
-
-    // handle new resume if uploaded
-    if (req.file) {
-      app.resumePath = req.file.path;
+    // 4) Validate required fields
+    if (!companyName || !position || !location || !status || !dateApplied) {
+      return res.status(400).json({
+        message: 'companyName, position, location, status, and dateApplied are required.'
+      });
     }
 
-    // recruiters
+    // 5) Handle recruiter and alumni validations
     if (recruiters) {
-      const recData = JSON.parse(recruiters);
-      let recruiterIds = [];
-      for (const rec of recData) {
-        if (rec._id) {
-          // possibly update existing
-          const existing = await Recruiter.findById(rec._id);
-          if (existing) {
-            existing.name = rec.name || existing.name;
-            existing.email = rec.email || existing.email;
-            existing.phone = rec.phone || existing.phone;
-            existing.notes = rec.notes || existing.notes;
-            await existing.save();
-            recruiterIds.push(existing._id);
+      let recData = [];
+      if (typeof recruiters === 'string') {
+        if (recruiters.trim() !== '') {
+          try {
+            recData = JSON.parse(recruiters);
+          } catch (e) {
+            return res.status(400).json({ message: 'Invalid recruiters JSON.' });
           }
-        } else {
-          const newRecruiter = new Recruiter(rec);
-          await newRecruiter.save();
-          recruiterIds.push(newRecruiter._id);
         }
+      } else if (Array.isArray(recruiters)) {
+        recData = recruiters;
+      }
+
+      if (recData.length > 0) {
+        for (const rec of recData) {
+          if (!rec.name?.trim()) {
+            return res.status(400).json({ message: 'Recruiter name is required if recruiter is added.' });
+          }
+        }
+      }
+    }
+
+    if (alumni) {
+      let alData = [];
+      if (typeof alumni === 'string') {
+        if (alumni.trim() !== '') {
+          try {
+            alData = JSON.parse(alumni);
+          } catch (e) {
+            return res.status(400).json({ message: 'Invalid alumni JSON.' });
+          }
+        }
+      } else if (Array.isArray(alumni)) {
+        alData = alumni;
+      }
+
+      if (alData.length > 0) {
+        for (const al of alData) {
+          if (!al.name?.trim()) {
+            return res.status(400).json({ message: 'Alumni name is required if alumni is added.' });
+          }
+        }
+      }
+    }
+
+    // Update the application fields
+    app.companyName = companyName;
+    app.position = position;
+    app.location = location;
+    app.status = status;
+    app.dateApplied = dateApplied;
+    app.applicationLink=applicationLink;
+    app.notes = notes;
+
+    // Handle recruiters and alumni
+    if (recruiters) {
+      let recruiterIds = [];
+      for (const rec of recruiters) {
+        let recruiter = await Recruiter.findOne({ email: rec.email });
+        if (!recruiter) {
+          recruiter = new Recruiter(rec);
+          await recruiter.save();
+        }
+        recruiterIds.push(recruiter._id);
       }
       app.recruiters = recruiterIds;
     }
 
-    // alumni
     if (alumni) {
-      const alData = JSON.parse(alumni);
       let alumniIds = [];
-      for (const al of alData) {
-        if (al._id) {
-          const existingAl = await Alumni.findById(al._id);
-          if (existingAl) {
-            existingAl.name = al.name || existingAl.name;
-            existingAl.email = al.email || existingAl.email;
-            existingAl.link = al.link || existingAl.link;
-            existingAl.notes = al.notes || existingAl.notes;
-            await existingAl.save();
-            alumniIds.push(existingAl._id);
-          }
-        } else {
-          const newAlumni = new Alumni(al);
-          await newAlumni.save();
-          alumniIds.push(newAlumni._id);
+      for (const al of alumni) {
+        let alumnus = await Alumni.findOne({ email: al.email });
+        if (!alumnus) {
+          alumnus = new Alumni(al);
+          await alumnus.save();
         }
+        alumniIds.push(alumnus._id);
       }
       app.alumni = alumniIds;
     }
@@ -194,7 +280,7 @@ exports.deleteApplication = async (req, res) => {
     if (req.user.role === 'user' && app.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
-    await app.remove();
+    await Application.findByIdAndDelete(req.params.id);
     return res.status(200).json({ message: 'Application deleted' });
   } catch (err) {
     console.error(err);
