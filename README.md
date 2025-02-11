@@ -27,30 +27,35 @@ Welcome to the **Job Tracking Application**, a modern and intuitive platform des
 
 ## Screenshots
 
-### Home Page
-Displays the total number of applications and a pie chart showing the distribution of accepted and rejected applications.
-
-
-
 ### Application List
 View all your applications in a clean, tabular format with options to edit or delete.
 
-![Application List](./screenshots/application-list.png)
+![image](https://github.com/user-attachments/assets/14a3ff87-c850-45e9-ab7a-ab1114c93d81)
+
 
 ### Application Details
 Detailed view of a specific application, including company, position, status, and notes.
 
-![Application Details](./screenshots/application-details.png)
+![image](https://github.com/user-attachments/assets/59792e18-2657-4889-8023-0da50639380c)
+
 
 ### Statistics Page
 Visualize your application progress with charts and graphs.
 
-![Statistics Page](./screenshots/statistics-page.png)
+![image](https://github.com/user-attachments/assets/deb00917-d349-4fe2-9b23-c1eda359b2d4)
+
 
 ### Login Page
 Secure login page with options to sign up or reset your password.
 
 ![image](https://github.com/user-attachments/assets/226fdee2-c7c1-4af9-aacd-cf3d8803987c)
+
+
+### Registration Page
+Secure the registration page with options to sign up or reset your password.
+
+![image](https://github.com/user-attachments/assets/51b5bba9-6223-476e-b3ff-b68e5cf72734)
+
 
 
 ## Technologies Used
