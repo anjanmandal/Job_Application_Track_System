@@ -78,5 +78,5 @@ Secure the registration page with options to sign up or reset your password.
 1. **Clone the Repository**:
 
    ```bash
-   [git clone https://github.com/your-username/job-tracking-app.git](https://github.com/anjanmandal/Job_Application_Track_System.git)
+   [git clone https://github.com/anjanmandal/Job_Application_Track_System.git]
    cd job-tracking-app
